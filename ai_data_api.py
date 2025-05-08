@@ -8,6 +8,9 @@ from datetime import date
 import threading
 import time
 import os
+import phonenumbers
+from phonenumbers import geocoder, carrier
+from phonenumbers.phonenumberutil import region_code_for_country_code
 
 app = FastAPI()
 fake = Faker()
@@ -15,9 +18,28 @@ fake = Faker()
 file_path = "AI_Solution_Dataset.csv"
 lock = threading.Lock()
 
-# Function to generate a phone number based on country
+# Function to get a properly formatted international phone number
 def generate_phone_number(country):
-    return fake.phone_number().split('x')[0]
+    try:
+        # Generate a fake phone number
+        number = fake.phone_number()
+        
+        # Try to get the country code for the given country
+        country_code = phonenumbers.country_code_for_region(fake.country_code(representation="alpha-2"))
+
+        # Parse and reformat the number with the country code
+        parsed_number = phonenumbers.parse(number, None)
+        
+        # If number is valid, format in E.164 (e.g., +14155552671)
+        if phonenumbers.is_valid_number(parsed_number):
+            return phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.E164)
+        else:
+            # Fallback: just add country code manually and strip invalid characters
+            clean_number = ''.join(filter(str.isdigit, number))
+            return f"+{country_code}{clean_number[-10:]}"  # Use last 10 digits assuming it's a mobile number
+    except:
+        # Fallback if formatting fails
+        return f"+{random.randint(1, 199)}{random.randint(1000000000, 9999999999)}"
 
 # Function to create a single record
 def create_record():
@@ -29,7 +51,7 @@ def create_record():
     gender = random.choice(['Male', 'Female'])
     age = random.randint(18, 65)
     Company_Name = fake.company()
-    customer_type = 'Member'
+    customer_type = random.choice(['Member','Normal'])
     Benefits_of_Membership_Type = random.choice(['Basic support', 'Exclusive offers'])
     Subscription_Duration = random.choice(['Monthly', 'Yearly'])
     Subscription_Date = fake.date_between(start_date=date(2022, 1, 1), end_date=date(2025, 12, 31))
@@ -81,14 +103,21 @@ def create_record():
         product_rating = random.choice([1, 2])
         comments = fake.sentence(ext_word_list=["Extremely disappointed!", "Product failed to meet expectations."])
     payment_method = random.choice(['Credit Card', 'PayPal', 'Skrill', 'Airpay'])
+    assistance_type = random.choice(["AI-powered virtual assistant", "Sales Representative"])
+    # Add salesperson details if not AI-assisted
+    Sales_Rep_Name=fake.name() if assistance_type == "Sales Representative" else "N/A",
+    Sales_Rep_Email= fake.email() if assistance_type == "Sales Representative" else "N/A",
+    Sales_Rep_Phone = fake.phone_number() if assistance_type == "Sales Representative" else "N/A",
+    Sales_Rep_ID = fake.uuid4() if assistance_type == "Sales Representative" else "N/A"
+    
     return {
         "Customer ID": customer_id, "Customer Name": customer_name, "Email": email, "Phone": phone, "Country": country,
         "Gender": gender, "Age": age, "Company Name": Company_Name, "Customer Type": customer_type,
         "Subscription Type": subscription_type, "Benefits of Membership Type": Benefits_of_Membership_Type,
         "Subscription Duration": Subscription_Duration, "Subscription Date": Subscription_Date,
         "Subscription Price": price, "Product ID": Product_ID, "Product Type": product_type,
-        "Inquries": Inquiry_Type, "Cost of Product": cost_of_service, "Sales Amount": price_of_service,
-        "Sales Date ": sales_date, "Sales Time": sales_time, "Payment Method": payment_method,
+        "Inquries": Inquiry_Type, "Assistance Type": assistance_type,  "Sales Rep ID":Sales_Rep_ID , "Sales Rep Name": Sales_Rep_Name, "Sales Rep Email":Sales_Rep_Email, "Sales Rep Phone":Sales_Rep_Phone, "Cost of Product": cost_of_service, "Sales Amount": price_of_service,
+        "Sales Date": sales_date, "Sales Time": sales_time, "Payment Method": payment_method,
         "Demo Scheduled": demo_scheduled, "Promotional Event Participation": Promotional_Event_Participation,
         "Promotional Event": Type_of_Promotional_Event, "Response Time (days)": response_time,
         "Product Status": product_status, "Refund Amount": refund_amount, "Product Rating": product_rating,
